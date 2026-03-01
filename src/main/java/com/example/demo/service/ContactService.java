@@ -81,42 +81,42 @@ public class ContactService {
             contactRepository.save(secondary);
         }
 
-        List<Contact> allLinked = contactRepository.findAll().stream()
-                .filter(c -> c.getId().equals(primary.getId())
-                        || (c.getLinkedId() != null && c.getLinkedId().equals(primary.getId())))
-                .collect(Collectors.toList());
+     // Fetch all contacts related to primary
+        List<Contact> allLinked = new ArrayList<>();
+
+        // Add primary
+        allLinked.add(primary);
+
+        // Add all secondaries linked to primary
+        allLinked.addAll(contactRepository.findByLinkedId(primary.getId()));
 
         return buildResponse(primary, allLinked);
     }
 
     private IdentifyResponse buildResponse(Contact primary, List<Contact> contacts) {
 
-        if (contacts.isEmpty()) {
-            contacts = List.of(primary);
+        Set<String> emailSet = new LinkedHashSet<>();
+        Set<String> phoneSet = new LinkedHashSet<>();
+        List<Long> secondaryIds = new ArrayList<>();
+
+        // Add primary first
+        if (primary.getEmail() != null) emailSet.add(primary.getEmail());
+        if (primary.getPhoneNumber() != null) phoneSet.add(primary.getPhoneNumber());
+
+        for (Contact c : contacts) {
+            if (!c.getId().equals(primary.getId())) {
+                if (c.getEmail() != null) emailSet.add(c.getEmail());
+                if (c.getPhoneNumber() != null) phoneSet.add(c.getPhoneNumber());
+                if (c.getLinkPrecedence() == LinkPrecedence.SECONDARY)
+                    secondaryIds.add(c.getId());
+            }
         }
-
-        List<String> emails = contacts.stream()
-                .map(Contact::getEmail)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<String> phones = contacts.stream()
-                .map(Contact::getPhoneNumber)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<Long> secondaryIds = contacts.stream()
-                .filter(c -> c.getLinkPrecedence() == LinkPrecedence.SECONDARY)
-                .map(Contact::getId)
-                .collect(Collectors.toList());
 
         IdentifyResponse.ContactResponse response =
                 new IdentifyResponse.ContactResponse(
                         primary.getId(),
-                        emails,
-                        phones,
+                        new ArrayList<>(emailSet),
+                        new ArrayList<>(phoneSet),
                         secondaryIds
                 );
 
